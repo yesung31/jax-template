@@ -103,9 +103,9 @@ def main(cfg: DictConfig):
     @jax.jit
     def train_step(state, batch):
         grad_fn = jax.value_and_grad(model_wrapper.loss_fn, argnums=0, has_aux=True)
-        (loss, logits), grads = grad_fn(state.params, batch)
+        (loss, aux), grads = grad_fn(state.params, batch)
         state = state.apply_gradients(grads=grads)
-        return state, loss
+        return state, loss, aux
 
     @jax.jit
     def eval_step(state, batch):
@@ -143,51 +143,67 @@ def main(cfg: DictConfig):
         start_epoch = global_step // len(train_loader)
 
     print("Starting training...")
+    total_steps = len(train_loader) * cfg.max_epochs
+    pbar = tqdm(total=total_steps, initial=global_step, desc="Training", leave=True)
+    # Placeholder for pbar metrics to ensure variable scope availability
+    pbar_metrics = {}
+
     for epoch in range(start_epoch, cfg.max_epochs):
         # Train
-        train_metrics = []
-        pbar = tqdm(train_loader, desc=f"Epoch {epoch}", leave=True)
-        for batch in pbar:
+        for batch in train_loader:
             # Transfer to JAX device if not already (JIT handles it but explicit is good)
             batch = jax.tree_util.tree_map(jnp.array, batch)
-            state, loss = train_step(state, batch)
-            train_metrics.append(loss)
+            state, loss, aux = train_step(state, batch)
 
-            pbar.set_postfix({"loss": f"{loss.item():.4f}"})
+            # Get metrics for progress bar
+            pbar_metrics = {k: float(v) for k, v in aux["pbar"].items()}
+            pbar.set_postfix(pbar_metrics)
 
+            # Log metrics
             if global_step % 10 == 0:
+                log_metrics = {k: float(v) for k, v in aux["log"].items()}
+                log_metrics["epoch"] = epoch
                 if wandb.run is not None:
-                    wandb.log({"train_loss": loss.item(), "epoch": epoch}, step=global_step)
-                tb_writer.add_scalar("train_loss", loss.item(), global_step)
+                    wandb.log(log_metrics, step=global_step)
+                for k, v in log_metrics.items():
+                    if isinstance(v, (int, float)):
+                        tb_writer.add_scalar(k, v, global_step)
 
+            pbar.update(1)
             global_step += 1
 
-        avg_train_loss = np.mean(train_metrics)
-        print(f"Epoch {epoch}: Train Loss {avg_train_loss:.4f}")
-
         # Validate
-        val_metrics = []
+        val_metrics_list = []
         for batch in val_loader:
             batch = jax.tree_util.tree_map(jnp.array, batch)
             metrics = eval_step(state, batch)
-            val_metrics.append(metrics)
+            val_metrics_list.append(metrics)
 
-        # Aggregate metrics
-        avg_val_loss = np.mean([m["loss"] for m in val_metrics])
-        avg_val_acc = np.mean([m["accuracy"] for m in val_metrics])
+        # Aggregate metrics dynamically
+        if val_metrics_list:
+            avg_val_metrics = {}
+            for k in val_metrics_list[0].keys():
+                # Extract scalar value from JAX array if necessary
+                avg_val_metrics[k] = np.mean([float(m[k]) for m in val_metrics_list])
+            
+            # Update pbar with validation metrics (formatted nicely)
+            val_display = {k: f"{v:.4f}" for k, v in avg_val_metrics.items()}
+            # Merge with current train metrics
+            current_postfix = pbar.postfix if pbar.postfix else {}
+            # If pbar.postfix is a string, we might have issues, but set_postfix handles dicts.
+            # We recreate the dict to ensure clarity
+            combined_metrics = {**pbar_metrics, **val_display}
+            pbar.set_postfix(combined_metrics)
 
-        print(f"Epoch {epoch}: Val Loss {avg_val_loss:.4f}, Val Acc {avg_val_acc:.4f}")
-
-        if wandb.run is not None:
-            wandb.log(
-                {"val_loss": avg_val_loss, "val_acc": avg_val_acc, "epoch": epoch}, step=global_step
-            )
-        tb_writer.add_scalar("val_loss", avg_val_loss, global_step)
-        tb_writer.add_scalar("val_acc", avg_val_acc, global_step)
+            if wandb.run is not None:
+                wandb.log({**avg_val_metrics, "epoch": epoch}, step=global_step)
+            for k, v in avg_val_metrics.items():
+                tb_writer.add_scalar(k, v, global_step)
 
         # Save Checkpoint
         ckpt_manager.save(global_step, state)
 
+    pbar.close()
     if wandb.run is not None:
         wandb.finish()
     tb_writer.close()

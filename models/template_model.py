@@ -21,12 +21,20 @@ class TemplateModel:
         x, y = batch
         logits = self.net.apply({"params": params}, x)
         loss = optax.softmax_cross_entropy_with_integer_labels(logits=logits, labels=y).mean()
-        return loss, logits
+        
+        # Metrics to log to WandB/TensorBoard (will be averaged over epoch)
+        logs = {"train_loss": loss}
+        
+        # Metrics to display in the progress bar (current step)
+        pbar = {"loss": loss}
+        
+        return loss, {"logits": logits, "log": logs, "pbar": pbar}
 
     def eval_step(self, state, batch):
-        loss, logits = self.loss_fn(state.params, batch)
+        loss, aux = self.loss_fn(state.params, batch)
+        logits = aux["logits"]
         # Compute accuracy
         x, y = batch
         accuracy = jnp.mean(jnp.argmax(logits, -1) == y)
-        metrics = {"loss": loss, "accuracy": accuracy}
+        metrics = {"val_loss": loss, "val_acc": accuracy}
         return metrics
