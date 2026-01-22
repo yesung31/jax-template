@@ -2,7 +2,7 @@ import warnings
 
 import numpy as np
 
-from core.data import DataModule, Dataset, JAXDataLoader
+from core.data import DataLoader, DataModule, Dataset
 
 
 class NumpyDataset(Dataset):
@@ -51,12 +51,12 @@ class TemplateDataModule(DataModule):
         )
 
     def train_dataloader(self):
-        return JAXDataLoader(
+        return DataLoader(
             self.train_dataset, batch_size=self.batch_size, shuffle=True, drop_last=True
         )
 
     def val_dataloader(self):
-        return JAXDataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False)
+        return DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False)
 
     def test_dataloader(self):
-        return JAXDataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False)
+        return DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False)

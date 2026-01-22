@@ -12,15 +12,17 @@ from omegaconf import DictConfig, OmegaConf
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
+from core.callback import Callback
 from core.checkpoint import CheckpointManager
 from utils.helpers import get_resume_info
 
 
 class Trainer:
-    def __init__(self, cfg: DictConfig, model, datamodule):
+    def __init__(self, cfg: DictConfig, model, datamodule, callbacks: list[Callback] | None = None):
         self.cfg = cfg
         self.model = model
         self.dm = datamodule
+        self.callbacks = callbacks or []
 
         # Resolve output directory from Hydra
         try:
@@ -43,6 +45,12 @@ class Trainer:
         # Logging
         self.wandb_run = None
         self.tb_writer = None
+
+    def _call_callbacks(self, method_name, *args, **kwargs):
+        for callback in self.callbacks:
+            method = getattr(callback, method_name, None)
+            if method:
+                method(self, self.model, *args, **kwargs)
 
     def _setup_logging(self):
         log_file = self.log_dir / "trainer.log"
@@ -86,7 +94,7 @@ class Trainer:
         # Try to get it from train_dataloader, else val/test
         try:
             sample_loader = self.dm.train_dataloader()
-        except:
+        except Exception:
             sample_loader = self.dm.test_dataloader()
 
         sample_batch = next(iter(sample_loader))
@@ -124,16 +132,21 @@ class Trainer:
         # JIT Functions
         @jax.jit
         def train_step(state, batch):
-            grad_fn = jax.value_and_grad(self.model.loss_fn, argnums=0, has_aux=True)
-            (loss, aux), grads = grad_fn(state.params, batch)
+            def loss_fn(params):
+                output = self.model.training_step(params, batch)
+                return output.loss, output
+
+            (loss, output), grads = jax.value_and_grad(loss_fn, has_aux=True)(state.params)
             state = state.apply_gradients(grads=grads)
-            return state, loss, aux
+            return state, output
 
         @jax.jit
         def eval_step(state, batch):
-            return self.model.eval_step(state, batch)
+            return self.model.validation_step(state, batch)
 
         print("Starting training...")
+        self._call_callbacks("on_train_start")
+
         steps_per_epoch = len(train_loader)
 
         # Determine start epoch
@@ -143,20 +156,30 @@ class Trainer:
         pbar_metrics = {}
 
         for epoch in range(start_epoch, self.cfg.max_epochs):
+            self._call_callbacks("on_train_epoch_start")
+
             pbar.reset(total=steps_per_epoch)
             pbar.set_description(f"Epoch {epoch}")
+
             # --- TRAIN LOOP ---
+            batch_idx = 0
             for batch in train_loader:
+                self._call_callbacks("on_train_batch_start", batch=batch, batch_idx=batch_idx)
+
                 batch = jax.tree_util.tree_map(jnp.array, batch)
-                self.state, loss, aux = train_step(self.state, batch)
+                self.state, output = train_step(self.state, batch)
+
+                self._call_callbacks(
+                    "on_train_batch_end", outputs=output, batch=batch, batch_idx=batch_idx
+                )
 
                 # Update Pbar
-                pbar_metrics = {k: float(v) for k, v in aux["pbar"].items()}
+                pbar_metrics = {k: float(v) for k, v in output.pbar.items()}
                 pbar.set_postfix(pbar_metrics)
 
                 # Logging
                 if self.global_step % 10 == 0:
-                    log_metrics = {k: float(v) for k, v in aux["log"].items()}
+                    log_metrics = {k: float(v) for k, v in output.metrics.items()}
                     log_metrics["epoch"] = epoch
 
                     if self.wandb_run:
@@ -167,13 +190,26 @@ class Trainer:
 
                 pbar.update(1)
                 self.global_step += 1
+                batch_idx += 1
 
             # --- VALIDATION LOOP ---
+            self._call_callbacks("on_validation_start")
+
             val_metrics_list = []
+            val_batch_idx = 0
             for batch in val_loader:
+                self._call_callbacks(
+                    "on_validation_batch_start", batch=batch, batch_idx=val_batch_idx
+                )
+
                 batch = jax.tree_util.tree_map(jnp.array, batch)
-                metrics = eval_step(self.state, batch)
-                val_metrics_list.append(metrics)
+                output = eval_step(self.state, batch)
+                val_metrics_list.append(output.metrics)
+
+                self._call_callbacks(
+                    "on_validation_batch_end", outputs=output, batch=batch, batch_idx=val_batch_idx
+                )
+                val_batch_idx += 1
 
             if val_metrics_list:
                 avg_val_metrics = {}
@@ -190,10 +226,15 @@ class Trainer:
                 for k, v in avg_val_metrics.items():
                     self.tb_writer.add_scalar(k, v, self.global_step)
 
+            self._call_callbacks("on_validation_end")
+
             # Checkpoint
             self.ckpt_manager.save(self.global_step, self.state)
 
+            self._call_callbacks("on_train_epoch_end")
+
         pbar.close()
+        self._call_callbacks("on_train_end")
         self.teardown()
 
     def test(self, ckpt_path: str | None = None):
@@ -205,12 +246,6 @@ class Trainer:
         """
         if ckpt_path:
             # Override internal state with checkpoint
-            # Logic to resolve checkpoint path similar to eval.py
-            # We assume ckpt_path points to the root run dir (containing 'checkpoints')
-            # or is the specific checkpoint dir?
-            # eval.py logic: if cfg.resume -> ckpt_path = Path(cfg.resume)
-            # then ckpt_manager(ckpt_path / "checkpoints")
-
             path = Path(ckpt_path) / "checkpoints"
             if path.exists():
                 mgr = CheckpointManager(path)
@@ -223,25 +258,36 @@ class Trainer:
 
         @jax.jit
         def eval_step(state, batch):
-            return self.model.eval_step(state, batch)
+            return self.model.test_step(state, batch)
 
         print("Starting testing...")
-        test_metrics = []
-        for batch in tqdm(test_loader, desc="Testing"):
-            batch = jax.tree_util.tree_map(jnp.array, batch)
-            metrics = eval_step(self.state, batch)
-            test_metrics.append(metrics)
+        self._call_callbacks("on_test_start")
 
-        if test_metrics:
+        test_metrics_list = []
+        batch_idx = 0
+        for batch in tqdm(test_loader, desc="Testing"):
+            self._call_callbacks("on_test_batch_start", batch=batch, batch_idx=batch_idx)
+
+            batch = jax.tree_util.tree_map(jnp.array, batch)
+            output = eval_step(self.state, batch)
+            test_metrics_list.append(output.metrics)
+
+            self._call_callbacks(
+                "on_test_batch_end", outputs=output, batch=batch, batch_idx=batch_idx
+            )
+            batch_idx += 1
+
+        if test_metrics_list:
             avg_metrics = {}
-            for k in test_metrics[0].keys():
-                avg_metrics[k] = np.mean([float(m[k]) for m in test_metrics])
+            for k in test_metrics_list[0].keys():
+                avg_metrics[k] = np.mean([float(m[k]) for m in test_metrics_list])
 
             print("\nTest Results:")
             for k, v in avg_metrics.items():
                 print(f"{k}: {v:.4f}")
             print("\n")
 
+        self._call_callbacks("on_test_end")
         self.teardown()
 
     def teardown(self):

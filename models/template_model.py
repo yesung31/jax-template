@@ -1,41 +1,34 @@
 import jax.numpy as jnp
 import optax
-from flax.training import train_state
 
-from core.model import Model
+from core.model import Model, ModelOutput
 from models.networks.template_network import TemplateNetwork
 
 
 class TemplateModel(Model):
     def __init__(self, **kwargs):
-        # The model wrapper only holds the network definition.
-        # Optimization hyperparameters are passed when creating the state.
+        super().__init__(**kwargs)
         self.net = TemplateNetwork()
 
-    def create_train_state(self, rng, input_shape, learning_rate):
-        """Creates initial TrainState with the specified learning rate."""
-        params = self.net.init(rng, jnp.ones(input_shape))["params"]
-        tx = optax.adam(learning_rate)
-        return train_state.TrainState.create(apply_fn=self.net.apply, params=params, tx=tx)
+    def configure_optimizers(self, learning_rate):
+        return optax.adam(learning_rate)
 
-    def loss_fn(self, params, batch):
+    def training_step(self, params, batch):
         x, y = batch
         logits = self.net.apply({"params": params}, x)
         loss = optax.softmax_cross_entropy_with_integer_labels(logits=logits, labels=y).mean()
 
-        # Metrics to log to WandB/TensorBoard (will be averaged over epoch)
-        logs = {"train_loss": loss}
+        return ModelOutput(loss=loss, extra={"logits": logits}).log(
+            "train_loss", loss, prog_bar=True
+        )
 
-        # Metrics to display in the progress bar (current step)
-        pbar = {"loss": loss}
-
-        return loss, {"logits": logits, "log": logs, "pbar": pbar}
-
-    def eval_step(self, state, batch):
-        loss, aux = self.loss_fn(state.params, batch)
-        logits = aux["logits"]
-        # Compute accuracy
+    def validation_step(self, state, batch):
+        # Re-use training logic for forward pass and loss
         x, y = batch
+        output = self.training_step(state.params, batch)
+        logits = output.extra["logits"]
+
+        # Compute accuracy
         accuracy = jnp.mean(jnp.argmax(logits, -1) == y)
-        metrics = {"val_loss": loss, "val_acc": accuracy}
-        return metrics
+
+        return output.log("val_loss", output.loss).log("val_acc", accuracy, prog_bar=True)

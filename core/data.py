@@ -24,13 +24,13 @@ class DataModule(ABC):
         pass
 
     def prepare_data(self):
-        """Use this to download data or save to disk. 
+        """Use this to download data or save to disk.
         This is called only once (usually) before setup.
         """
         pass
 
     @abstractmethod
-    def setup(self, stage: Optional[str] = None):
+    def setup(self, stage: str | None = None):
         """Load data, split, and perform transformations.
         This is called on every device (in distributed setting) or once per run.
         """
@@ -52,7 +52,7 @@ class DataModule(ABC):
         pass
 
 
-class JAXDataLoader:
+class DataLoader:
     def __init__(self, dataset, batch_size, shuffle=False, drop_last=False, seed=0):
         self.dataset = dataset
         self.batch_size = batch_size
