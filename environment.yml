@@ -7,7 +7,6 @@ dependencies:
   - jaxlib
   - flax
   - optax
-  - orbax-checkpoint
   - hydra-core
   - wandb
   - tensorboard
@@ -17,3 +16,6 @@ dependencies:
   - scipy
   - matplotlib
   - tqdm
+  - pip
+  - pip:
+    - orbax-checkpoint
