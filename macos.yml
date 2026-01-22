@@ -1,0 +1,22 @@
+name: jax-macos
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - jax=0.4.35
+  - jaxlib=0.4.35
+  - flax
+  - optax
+  - hydra-core
+  - wandb
+  - tensorboard
+  - tensorboardX
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib
+  - tqdm
+  - pip
+  - pip:
+    - orbax-checkpoint==0.10.3
+    - jax-metal==0.1.1
