@@ -1,11 +1,14 @@
-import orbax.checkpoint
 from pathlib import Path
-import os
+
+import orbax.checkpoint
+
 
 class CheckpointManager:
     def __init__(self, directory, max_to_keep=1):
         self.directory = Path(directory).resolve()
-        self.options = orbax.checkpoint.CheckpointManagerOptions(max_to_keep=max_to_keep, create=True)
+        self.options = orbax.checkpoint.CheckpointManagerOptions(
+            max_to_keep=max_to_keep, create=True
+        )
         self.checkpointer = orbax.checkpoint.PyTreeCheckpointer()
         self.manager = orbax.checkpoint.CheckpointManager(
             self.directory, self.checkpointer, self.options

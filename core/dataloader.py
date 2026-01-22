@@ -1,6 +1,7 @@
-import numpy as np
-import jax.numpy as jnp
 import math
+
+import numpy as np
+
 
 class NumpyDataset:
     def __init__(self, *arrays):
@@ -13,6 +14,7 @@ class NumpyDataset:
 
     def __getitem__(self, idx):
         return tuple(a[idx] for a in self.arrays)
+
 
 class JAXDataLoader:
     def __init__(self, dataset, batch_size, shuffle=False, drop_last=False, seed=0):
@@ -29,10 +31,10 @@ class JAXDataLoader:
 
         for i in range(0, len(indices), self.batch_size):
             batch_indices = indices[i : i + self.batch_size]
-            
+
             if self.drop_last and len(batch_indices) < self.batch_size:
                 continue
-            
+
             # Fetch data
             batch = self.dataset[batch_indices]
             yield batch

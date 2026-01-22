@@ -1,5 +1,6 @@
 import flax.linen as nn
 
+
 class TemplateNetwork(nn.Module):
     @nn.compact
     def __call__(self, x):

@@ -1,15 +1,17 @@
 from pathlib import Path
-import os
+
 from omegaconf import OmegaConf
+
 
 def register_resolvers():
     if not OmegaConf.has_resolver("resume_or_new"):
         OmegaConf.register_new_resolver("resume_or_new", lambda r, n: r if r else n)
 
+
 def get_resume_info(log_dir):
     log_dir = Path(log_dir).resolve()
     ckpt_dir = log_dir / "checkpoints"
-    
+
     latest_step = None
     if ckpt_dir.exists():
         # Orbax saves steps as directories, usually integers.
@@ -39,8 +41,9 @@ def get_resume_info(log_dir):
 
     return latest_step, wandb_id
 
+
 def instantiate(Class, cfg):
     kwargs = OmegaConf.to_container(cfg, resolve=True)
-    # We pass the relevant sub-configs as kwargs, excluding 'name' which is used for class resolution.
+    # Pass relevant sub-configs as kwargs, excluding 'name'.
     kwargs.pop("name", None)
     return Class(**kwargs)
