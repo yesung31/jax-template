@@ -1,7 +1,6 @@
 import logging
 import time
 from pathlib import Path
-from typing import Optional
 
 import hydra
 import jax
@@ -197,8 +196,8 @@ class Trainer:
         pbar.close()
         self.teardown()
 
-    def test(self, ckpt_path: Optional[str] = None):
-        """
+    def test(self, ckpt_path: str | None = None):
+        """str | None
         Runs evaluation on the test set.
         Args:
             ckpt_path: Optional path to a checkpoint directory to restore from.

@@ -2,10 +2,11 @@ import jax.numpy as jnp
 import optax
 from flax.training import train_state
 
+from core.model import Model
 from models.networks.template_network import TemplateNetwork
 
 
-class TemplateModel:
+class TemplateModel(Model):
     def __init__(self, **kwargs):
         # The model wrapper only holds the network definition.
         # Optimization hyperparameters are passed when creating the state.
@@ -21,13 +22,13 @@ class TemplateModel:
         x, y = batch
         logits = self.net.apply({"params": params}, x)
         loss = optax.softmax_cross_entropy_with_integer_labels(logits=logits, labels=y).mean()
-        
+
         # Metrics to log to WandB/TensorBoard (will be averaged over epoch)
         logs = {"train_loss": loss}
-        
+
         # Metrics to display in the progress bar (current step)
         pbar = {"loss": loss}
-        
+
         return loss, {"logits": logits, "log": logs, "pbar": pbar}
 
     def eval_step(self, state, batch):

@@ -2,10 +2,23 @@ import warnings
 
 import numpy as np
 
-from core.dataloader import JAXDataLoader, NumpyDataset
+from core.data import DataModule, Dataset, JAXDataLoader
 
 
-class TemplateDataModule:
+class NumpyDataset(Dataset):
+    def __init__(self, *arrays):
+        self.arrays = arrays
+        self.length = len(arrays[0])
+        assert all(len(a) == self.length for a in arrays)
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, idx):
+        return tuple(a[idx] for a in self.arrays)
+
+
+class TemplateDataModule(DataModule):
     def __init__(self, batch_size=32, num_workers=0, **kwargs):
         self.batch_size = batch_size
         self.num_workers = (
