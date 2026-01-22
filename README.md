@@ -1,38 +1,118 @@
-# JAX + Flax Template
+<!-- TEMPLATE INSTRUCTIONS: DELETE THIS SECTION BEFORE RELEASE -->
+# How to use this template (JAX/Flax Version)
 
-This is a JAX/Flax project template, mirroring the structure of a PyTorch Lightning template.
-It includes:
-- **Hydra** for configuration.
-- **Flax** for model definition.
-- **Optax** for optimization.
-- **Orbax** for checkpointing.
-- **WandB** & **TensorBoard** for logging.
-- **JAX Data Loading** (simple numpy-based loader in `core`).
+1.  **Rename**: Rename this folder to your project name.
+2.  **Environment**: 
+    - Rename `environment.yml` name if needed (default is `jax`).
+    - Run `conda env create -f environment.yml`.
+3.  **Implement**:
+    - Add your model in `models/your_model.py`. It must inherit `core.model.Model`.
+    - Add your network (Flax Module) in `models/networks/your_network.py`.
+    - Add your data module in `data/{task}/{dataset}.py`. It must inherit `core.data.DataModule`.
+4.  **Run**:
+    - `python train.py model.name=YourModel data.name=TemplateDataModule`
+    - Or update `configs/config.yaml` defaults.
 
-## Structure
+---
 
-- `configs/`: Hydra configurations.
-- `data/`: Data loading logic.
-- `models/`: Model definitions (Flax Modules).
-- `utils/`: Helper functions.
-- `core/`: JAX-specific utilities (DataLoader, Checkpointing).
-- `train.py`: Main training loop.
-- `eval.py`: Evaluation script.
+# Project Name (JAX/Flax)
+
+[Short description of the project]
+
+## Installation
+
+```bash
+conda env create -f environment.yml
+conda activate jax
+```
 
 ## Usage
 
-1. Install dependencies:
-   ```bash
-   conda env create -f environment.yml
-   conda activate jax-flax
-   ```
+To train the model:
 
-2. Train:
-   ```bash
-   python train.py
-   ```
+```bash
+python train.py
+```
 
-3. Evaluation:
-   ```bash
-   python eval.py resume=logs/TemplateDataModule/TemplateModel/YYYY-MM-DD_HH-MM-SS
-   ```
+### Configuration
+
+You can override parameters from the command line:
+
+```bash
+python train.py model.name=MyModel data.name=CIFAR10
+```
+
+`data.name` is used for the log directory name and class lookup in the `data` package.
+
+### Multirun
+
+You can run hyperparameter sweeps using the `-m` or `--multirun` flag:
+
+```bash
+python train.py -m max_epochs=5,10 seed=42,43
+```
+
+This creates a folder structure organized by the sweep timestamp, then data/model, and finally the job number:
+
+```
+logs/
+└── multirun/
+    └── 2026-01-22_10-00-00/
+        ├── TemplateDataModule/TemplateModel/0/
+        ├── TemplateDataModule/TemplateModel/1/
+        ├── TemplateDataModule/TemplateModel/2/
+        └── TemplateDataModule/TemplateModel/3/
+```
+
+### Resuming Training
+
+You can resume training from a previously interrupted run using the `resume` parameter. This will automatically:
+1.  Load the latest checkpoint from the `checkpoints` folder using Orbax.
+2.  Reconnect to the previous WandB run ID.
+3.  Continue logging in the same TensorBoard directory.
+
+#### Single Run
+Point `resume` to the specific run directory:
+```bash
+python train.py resume=logs/TemplateDataModule/TemplateModel/2026-01-22_10-00-00
+```
+
+## Logging
+
+This project uses both **Weights & Biases (WandB)** and **TensorBoard** for logging.
+
+### Weights & Biases
+
+WandB is configured as follows:
+- **Project**: The name of the current directory.
+- **Run Name**: `{data.name}/{model.name}`.
+- **Mode**: Controlled by `wandb` in `config.yaml` (online, offline, disabled).
+
+### TensorBoard
+
+TensorBoard logs are saved locally in the `logs/` directory.
+
+To view logs:
+```bash
+tensorboard --logdir logs/
+```
+
+## Evaluation
+
+To evaluate a trained model, provide the path to the run directory:
+
+```bash
+python eval.py resume=logs/TemplateDataModule/TemplateModel/2026-01-22_10-00-00
+```
+
+This script automatically restores the latest state from the `checkpoints` folder and uses the configuration found in the `.hydra` directory of that run.
+
+## Project Structure
+
+- `core/`: Universal components (Trainer, Model/Data base classes, Dataloader, Callbacks).
+- `configs/`: Hydra configurations.
+- `data/`: Data modules and specific dataset implementations.
+- `models/`: Model wrappers (inheriting `core.model.Model`).
+- `models/networks/`: Neural network architectures (Flax `nn.Module`).
+- `logs/`: TensorBoard logs, WandB files, and Orbax checkpoints.
+- `utils/`: Helper functions and Hydra resolvers.
