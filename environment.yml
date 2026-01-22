@@ -1,0 +1,19 @@
+name: jax
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - jax
+  - jaxlib
+  - flax
+  - optax
+  - orbax-checkpoint
+  - hydra-core
+  - wandb
+  - tensorboard
+  - tensorboardX
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib
+  - tqdm

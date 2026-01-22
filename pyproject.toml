@@ -1,0 +1,48 @@
+[project]
+name = "jax-template"
+version = "0.1.0"
+description = "A JAX/Flax machine learning project template"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "jax",
+    "jaxlib",
+    "flax",
+    "optax",
+    "orbax-checkpoint",
+    "hydra-core",
+    "wandb",
+    "tensorboard",
+    "tensorboardX",
+    "numpy",
+    "pandas",
+    "scipy",
+    "matplotlib",
+    "tqdm",
+]
+
+[dependency-groups]
+dev = [
+    "ruff",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

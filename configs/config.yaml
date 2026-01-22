@@ -1,0 +1,21 @@
+defaults:
+  - _self_
+  - data: template
+  - model: template
+
+seed: 42
+max_epochs: 10
+accelerator: "auto"
+devices: "auto"
+resume: null
+compile: true # JAX uses JIT by default, but this flag can control full program compilation or similar.
+
+wandb: "online" # Options: online, offline, disabled
+
+# Hydra settings
+hydra:
+  run:
+    dir: ${resume_or_new:${resume},logs/${data.name}/${model.name}/${now:%Y-%m-%d_%H-%M-%S}}
+  sweep:
+    dir: ${resume_or_new:${resume},logs/multirun/${now:%Y-%m-%d_%H-%M-%S}}
+    subdir: ${data.name}/${model.name}/${hydra.job.num}
