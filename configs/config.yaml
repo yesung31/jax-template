@@ -10,7 +10,7 @@ devices: "auto"
 resume: null
 compile: true # JAX uses JIT by default, but this flag can control full program compilation or similar.
 
-wandb: "online" # Options: online, offline, disabled
+wandb: "disabled" # Options: online, offline, disabled
 
 # Hydra settings
 hydra:
