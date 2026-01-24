@@ -1,3 +1,4 @@
+import math
 from abc import ABC, abstractmethod
 
 
@@ -34,3 +35,15 @@ class DataModule(ABC):
     def test_dataloader(self):
         """Returns the test dataloader."""
         pass
+
+    @property
+    def train_steps(self):
+        return len(self.train_source) // self.batch_size
+
+    @property
+    def val_steps(self):
+        return math.ceil(len(self.val_source) / self.batch_size)
+
+    @property
+    def test_steps(self):
+        return math.ceil(len(self.test_source) / self.batch_size)

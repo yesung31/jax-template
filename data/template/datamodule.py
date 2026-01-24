@@ -59,8 +59,7 @@ class TemplateDataModule(DataModule):
                     shard_options=grain.NoSharding(),
                 ),
                 worker_count=self.num_workers,
-                batch_size=self.batch_size,
-                drop_remainder=True,
+                operations=[grain.Batch(batch_size=self.batch_size, drop_remainder=True)],
             )
         )
 
@@ -75,8 +74,7 @@ class TemplateDataModule(DataModule):
                     shard_options=grain.NoSharding(),
                 ),
                 worker_count=self.num_workers,
-                batch_size=self.batch_size,
-                drop_remainder=False,
+                operations=[grain.Batch(batch_size=self.batch_size, drop_remainder=False)],
             )
         )
 
@@ -91,7 +89,6 @@ class TemplateDataModule(DataModule):
                     shard_options=grain.NoSharding(),
                 ),
                 worker_count=self.num_workers,
-                batch_size=self.batch_size,
-                drop_remainder=False,
+                operations=[grain.Batch(batch_size=self.batch_size, drop_remainder=False)],
             )
         )

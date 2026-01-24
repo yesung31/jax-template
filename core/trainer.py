@@ -134,6 +134,10 @@ class Trainer:
         train_loader = self.dm.train_dataloader()
         val_loader = self.dm.val_dataloader()
 
+        # Create iterator for infinite/persistent loading
+        train_iter = iter(train_loader)
+        val_iter = iter(val_loader)
+
         # JIT Functions
         @jax.jit
         def train_step(state, batch):
@@ -152,13 +156,24 @@ class Trainer:
         print("Starting training...")
         self._call_callbacks("on_train_start")
 
-        steps_per_epoch = len(train_loader)
+        steps_per_epoch = getattr(self.dm, "train_steps", None)
+        if steps_per_epoch is None:
+            try:
+                steps_per_epoch = len(train_loader)
+            except TypeError:
+                steps_per_epoch = None
 
         # Determine start epoch
-        start_epoch = self.global_step // steps_per_epoch
+        if steps_per_epoch:
+            start_epoch = self.global_step // steps_per_epoch
+        else:
+            # If indefinite, assume we start at 0 if global_step is 0,
+            # or try to respect global_step if possible but we can't determine epoch easily.
+            start_epoch = 0
 
         pbar = tqdm(total=steps_per_epoch, desc="Training", leave=True)
         pbar_metrics = {}
+        val_display = {}
 
         for epoch in range(start_epoch, self.cfg.max_epochs):
             self._call_callbacks("on_train_epoch_start")
@@ -168,7 +183,17 @@ class Trainer:
 
             # --- TRAIN LOOP ---
             batch_idx = 0
-            for batch in train_loader:
+            iterable = range(steps_per_epoch) if steps_per_epoch else train_loader
+            for step_item in iterable:
+                if steps_per_epoch:
+                    try:
+                        batch = next(train_iter)
+                    except StopIteration:
+                        train_iter = iter(self.dm.train_dataloader())
+                        batch = next(train_iter)
+                else:
+                    batch = step_item
+
                 self._call_callbacks("on_train_batch_start", batch=batch, batch_idx=batch_idx)
 
                 batch = jax.tree_util.tree_map(jnp.array, batch)
@@ -179,8 +204,8 @@ class Trainer:
                 )
 
                 # Update Pbar
-                pbar_metrics = {k: float(v) for k, v in output.pbar.items()}
-                pbar.set_postfix(pbar_metrics)
+                pbar_metrics = {k: f"{float(v):.4f}" for k, v in output.pbar.items()}
+                pbar.set_postfix({**pbar_metrics, **val_display})
 
                 # Logging
                 if self.global_step % 10 == 0:
@@ -200,9 +225,30 @@ class Trainer:
             # --- VALIDATION LOOP ---
             self._call_callbacks("on_validation_start")
 
+            val_steps = getattr(self.dm, "val_steps", None)
+            if val_steps is None:
+                try:
+                    val_steps = len(val_loader)
+                except TypeError:
+                    val_steps = None
+
+            val_pbar = tqdm(total=val_steps, desc="Validation", leave=False)
             val_metrics_list = []
             val_batch_idx = 0
-            for batch in val_loader:
+
+            # Use iterator if steps known (infinite loader support), else iterate loader directly
+            val_loop_iter = range(val_steps) if val_steps else val_loader
+
+            for step_item in val_loop_iter:
+                if val_steps:
+                    try:
+                        batch = next(val_iter)
+                    except StopIteration:
+                        val_iter = iter(self.dm.val_dataloader())
+                        batch = next(val_iter)
+                else:
+                    batch = step_item
+
                 self._call_callbacks(
                     "on_validation_batch_start", batch=batch, batch_idx=val_batch_idx
                 )
@@ -214,7 +260,9 @@ class Trainer:
                 self._call_callbacks(
                     "on_validation_batch_end", outputs=output, batch=batch, batch_idx=val_batch_idx
                 )
+                val_pbar.update(1)
                 val_batch_idx += 1
+            val_pbar.close()
 
             if val_metrics_list:
                 avg_val_metrics = {}
@@ -268,9 +316,16 @@ class Trainer:
         print("Starting testing...")
         self._call_callbacks("on_test_start")
 
+        test_steps = getattr(self.dm, "test_steps", None)
+        if test_steps is None:
+            try:
+                test_steps = len(test_loader)
+            except TypeError:
+                test_steps = None
+
         test_metrics_list = []
         batch_idx = 0
-        for batch in tqdm(test_loader, desc="Testing"):
+        for batch in tqdm(test_loader, desc="Testing", total=test_steps):
             self._call_callbacks("on_test_batch_start", batch=batch, batch_idx=batch_idx)
 
             batch = jax.tree_util.tree_map(jnp.array, batch)
