@@ -14,7 +14,12 @@ class TemplateModel(Model):
         return optax.adam(learning_rate)
 
     def training_step(self, params, batch):
-        x, y = batch
+        if isinstance(batch, dict):
+            x = batch["input"]
+            y = batch["label"]
+        else:
+            x, y = batch
+
         logits = self.net.apply({"params": params}, x)
         loss = optax.softmax_cross_entropy_with_integer_labels(logits=logits, labels=y).mean()
 
@@ -23,8 +28,11 @@ class TemplateModel(Model):
         )
 
     def validation_step(self, state, batch):
-        # Re-use training logic for forward pass and loss
-        x, y = batch
+        if isinstance(batch, dict):
+            y = batch["label"]
+        else:
+            _, y = batch
+
         output = self.training_step(state.params, batch)
         logits = output.extra["logits"]
 

@@ -98,8 +98,13 @@ class Trainer:
             sample_loader = self.dm.test_dataloader()
 
         sample_batch = next(iter(sample_loader))
-        # Handle tuple batch (x, y) or similar
-        sample_input = sample_batch[0] if isinstance(sample_batch, (list, tuple)) else sample_batch
+        # Handle tuple batch (x, y) or dict batch {'input': x, ...}
+        if isinstance(sample_batch, dict):
+            sample_input = sample_batch["input"]
+        elif isinstance(sample_batch, (list, tuple)):
+            sample_input = sample_batch[0]
+        else:
+            sample_input = sample_batch
 
         self.rng, init_rng = jax.random.split(self.rng)
         self.state = self.model.create_train_state(init_rng, sample_input.shape, self.cfg.model.lr)
