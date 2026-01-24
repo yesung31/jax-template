@@ -19,6 +19,7 @@ dependencies = [
     "scipy",
     "matplotlib",
     "tqdm",
+    "jax-metal>=0.1.1 ; sys_platform == 'darwin'",
 ]
 
 [dependency-groups]

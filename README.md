@@ -3,8 +3,9 @@
 
 1.  **Rename**: Rename this folder to your project name.
 2.  **Environment**: 
-    - Rename `environment.yml` name if needed (default is `jax`).
-    - Run `conda env create -f environment.yml`.
+    - Create a virtual environment (e.g., `python -m venv .venv` or `conda create -n myenv python=3.12`).
+    - Activate the environment.
+    - Install dependencies: `uv pip install -r pyproject.toml` (or `pip install .`).
 3.  **Implement**:
     - Add your model in `models/your_model.py`. It must inherit `core.model.Model`.
     - Add your network (Flax Module) in `models/networks/your_network.py`.
@@ -21,10 +22,33 @@
 
 ## Installation
 
-```bash
-conda env create -f environment.yml
-conda activate jax
-```
+Prerequisites: Python 3.12+
+
+1.  **Create a virtual environment**:
+    
+    Using standard Python venv:
+    ```bash
+    python -m venv .venv
+    source .venv/bin/activate
+    ```
+
+    Or using Conda:
+    ```bash
+    conda create -n jax python=3.12
+    conda activate jax
+    ```
+
+2.  **Install dependencies**:
+    
+    Using [uv](https://github.com/astral-sh/uv) (recommended):
+    ```bash
+    uv pip install -r pyproject.toml
+    ```
+
+    Or using standard pip:
+    ```bash
+    pip install .
+    ```
 
 ## Usage
 
