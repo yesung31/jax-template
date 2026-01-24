@@ -5,11 +5,14 @@ description = "A JAX/Flax machine learning project template"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "jax",
-    "jaxlib",
+    "jax==0.4.35 ; sys_platform == 'darwin'",
+    "jax ; sys_platform != 'darwin'",
+    "jaxlib==0.4.35 ; sys_platform == 'darwin'",
+    "jaxlib ; sys_platform != 'darwin'",
     "flax",
     "optax",
-    "orbax-checkpoint",
+    "orbax-checkpoint==0.10.3 ; sys_platform == 'darwin'",
+    "orbax-checkpoint ; sys_platform != 'darwin'",
     "hydra-core",
     "wandb",
     "tensorboard",
@@ -20,7 +23,7 @@ dependencies = [
     "matplotlib",
     "tqdm",
     "grain",
-    "jax-metal>=0.1.1 ; sys_platform == 'darwin'",
+    "jax-metal==0.1.1 ; sys_platform == 'darwin'",
 ]
 
 [dependency-groups]
